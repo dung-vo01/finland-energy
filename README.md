@@ -52,7 +52,7 @@ I rebuilt the same dashboard in Amazon QuickSight to get hands-on with AWS's BI 
 
 Since QuickSight dashboards are gated behind AWS/Cognito login and can't be shared publicly, this GIF is the easiest way to see it in action.
  
-![QuickSight dashboard demo](dashboards/finland-electricity-QuickSight.gif)
+![QuickSight dashboard demo](dashboards/Finland-electricity-QuickSight.gif)
 
 ## Data source
 
