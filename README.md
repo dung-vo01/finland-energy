@@ -32,16 +32,27 @@ A few things to notice:
 
 ```
 dashboards/
-  finland-electricity.pbix    # the actual report, open in Power BI Desktop
-  finland-electricity.pdf     # static export, viewable without Power BI
+  finland-electricity.pbix             # the actual report, open in Power BI Desktop
+  finland-electricity.pdf              # static export, viewable without Power BI
+  Finland-electricity-QuickSight.gif   # demo of the same dashboard rebuilt in AWS QuickSight
 data/
   electricity-consumption-124_2025-08-10T0000_2026-08-10T2355.csv    # raw consumption data from Fingrid
   electricity-production-74_2025-08-10T0000_2026-08-10T2355.csv      # raw production data from Fingrid
+  electricity-consumption-124_2025-08-10T0000_2026-08-10T2355_comma.csv    # raw consumption data from Fingrid (comma separated version for AWS QuickSight)
+  electricity-production-74_2025-08-10T0000_2026-08-10T2355_comma.csv      # raw production data from Fingrid (comma separated version for AWS QuickSight)
 ```
 
 ## How to explore it
 
 Either open `dashboards/finland-electricity.pdf` right here in GitHub for a quick look, or download `dashboards/finland-electricity.pbix` and open it in Power BI Desktop for the full interactive version.
+
+## QuickSight version
+ 
+I rebuilt the same dashboard in Amazon QuickSight to get hands-on with AWS's BI stack: same data, same insights, different tool. The numbers can be slightly different, given they have different ways to calculate the 7-day rolling average.
+
+Since QuickSight dashboards are gated behind AWS/Cognito login and can't be shared publicly, this GIF is the easiest way to see it in action.
+ 
+![QuickSight dashboard demo](dashboards/finland-electricity-QuickSight.gif)
 
 ## Data source
 
@@ -49,4 +60,4 @@ Either open `dashboards/finland-electricity.pdf` right here in GitHub for a quic
 
 ## Built with
 
-Power BI Desktop · Fingrid Open Data API
+Power BI Desktop · Amazon QuickSight · Fingrid Open Data API
