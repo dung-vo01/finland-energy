@@ -31,7 +31,7 @@ FILES = {
         "path": RAW_DIR
         / "electricity-consumption-124_2025-08-10T0000_2026-08-10T2355.csv",
         "value_col": "Electricity consumption in Finland",
-        "out_col": "consumption_mwh",
+        "out_col": "consumption_mwh_h",
         "out_path": CLEAN_DIR
         / "electricity-consumption-124_2025-08-10T0000_2026-08-10T2355-clean.csv",
     },
@@ -39,7 +39,7 @@ FILES = {
         "path": RAW_DIR
         / "electricity-production-74_2025-08-10T0000_2026-08-10T2355.csv",
         "value_col": "Electricity production in Finland",
-        "out_col": "production_mwh",
+        "out_col": "production_mwh_h",
         "out_path": CLEAN_DIR
         / "electricity-production-74_2025-08-10T0000_2026-08-10T2355-clean.csv",
     },
