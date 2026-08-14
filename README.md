@@ -24,12 +24,15 @@ A few things to notice:
 
 ## Insights from data
 
-- Finland runs at roughly 94% self-sufficiency on average, but that drops to the range of 86 - 88% during the coldest winter months (Jan–Feb), and rises to above 100% in October (102.82%).
-- One abnormal spike in March 2026 (98.26%) between two lowest points (Feb and Apr) needs further investigation since it occurs in the high-demand period.
-- Weekday demand consistently runs a bit above weekend demand.
-- On a daily basis, both consumption and productions move along each other: rise through the morning, a broad plateau, and a small evening bump before going down through midnight.
+- **Finland averages ~94% self-sufficiency, but winter is where it actually matters.** Jan-Feb drops to 86-88%, which is exactly the period when demand for electricity is always high. During this period, electricity import is essential to make up for the surge in demand.
+- **October runs a real surplus (102.82%).** That's a window where Finland could export rather than just cover its own demand. Also, it is worth checking if that's a one-off or a seasonal pattern.
+- **March 2026 has an unexplained bump (98.26%) sitting between two low points.** It breaks the expected winter-to-spring trend, and I don't have enough context (weather, etc.) to say why. It is worth to flag as a potential anomaly and requires further investigation.
+- **Weekday demand is consistently higher than weekend.** It is a normal pattern as the industrial/commercial load increases weekday averages.
+- **Daily demand and production track each other closely.** Both climb through the morning, plateau, dip slightly in the evening, fall off overnight. Production is largely following demand rather than running independently, which makes sense for a grid that's balancing supply in near real-time rather than stockpiling.
 
-(All the above numbers were based on the latest version in AWS QuickSight)
+One thing worth being upfront about: this is domestic production only, no import/export data, so "self-sufficiency" here means "how much of its own demand Finland covered domestically". A production shortfall doesn't necessarily mean the lights went out; it likely means Finland would import the difference.
+
+(Above numbers are pulled from the latest dashboard in AWS QuickSight.)
 
 ## Files
 
