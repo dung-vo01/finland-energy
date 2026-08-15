@@ -18,9 +18,12 @@
 # 15-min slot(s) inserted and the value linearly interpolated
 
 
+# Merge data across years as one file, removing duplicates
+
 import pandas as pd
 import numpy as np
 from pathlib import Path
+import glob
 
 RAW_DIR = Path("data/raw")
 CLEAN_DIR = Path("data/clean")
@@ -28,29 +31,53 @@ CLEAN_DIR.mkdir(parents=True, exist_ok=True)
 
 FILES = {
     "consumption": {
-        "path": RAW_DIR
-        / "electricity-consumption-124_2025-08-10T0000_2026-08-10T2355.csv",
+        "pattern": RAW_DIR / "electricity-consumption-124_*.csv",
         "value_col": "Electricity consumption in Finland",
         "out_col": "consumption_mwh_h",
-        "out_path": CLEAN_DIR
-        / "electricity-consumption-124_2025-08-10T0000_2026-08-10T2355-clean.csv",
+        "out_path": CLEAN_DIR / "electricity-consumption-3y-clean.csv",
     },
     "production": {
-        "path": RAW_DIR
-        / "electricity-production-74_2025-08-10T0000_2026-08-10T2355.csv",
+        "pattern": RAW_DIR / "electricity-production-74_*.csv",
         "value_col": "Electricity production in Finland",
         "out_col": "production_mwh_h",
-        "out_path": CLEAN_DIR
-        / "electricity-production-74_2025-08-10T0000_2026-08-10T2355-clean.csv",
+        "out_path": CLEAN_DIR / "electricity-production-3y-clean.csv",
     },
 }
 
 
-def load_raw(path: str, value_col: str) -> pd.DataFrame:
-    df = pd.read_csv(path, sep=";")
-    df["startTime"] = pd.to_datetime(df["startTime"], errors="coerce", utc=True)
-    df = df.rename(columns={value_col: "value"})
-    return df[["startTime", "value"]]
+def load_raw_multi(pattern: str, value_col: str) -> pd.DataFrame:
+    paths = sorted(glob.glob(str(pattern)))
+    if not paths:
+        raise FileNotFoundError(f"No files matched: {pattern}")
+
+    dfs = []
+    for p in paths:
+        df = pd.read_csv(p, sep=";")
+        df["startTime"] = pd.to_datetime(df["startTime"], errors="coerce", utc=True)
+        df = df.rename(columns={value_col: "value"})
+        dfs.append(df[["startTime", "value"]])
+
+    combined = pd.concat(dfs, ignore_index=True)
+    return combined, paths
+
+
+def remove_duplicates(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    n_before = len(df)
+
+    # check whether duplicate timestamp entries have the same value
+    # if not, then it could be data revision ==> take the latest value
+    dupes = df[df.duplicated(subset="startTime", keep=False)]
+    mismatched = 0
+    if not dupes.empty:
+        mismatched = dupes.groupby("startTime")["value"].nunique().gt(1).sum()
+
+    df = df.sort_values("startTime", kind="stable").drop_duplicates(subset="startTime", keep="last")
+    stats = {
+        "duplicate_timestamps_removed": n_before - len(df),
+        "duplicates_with_mismatched_values": int(mismatched),
+    }
+
+    return df.reset_index(drop=True), stats
 
 
 def drop_bad_rows(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
@@ -116,8 +143,16 @@ def fill_timestamp_gaps(
 def clean_file(name: str, config: dict) -> None:
     print(f"\n=== File: {name.upper()} ===")
 
-    df = load_raw(config["path"], config["value_col"])
-    print(f"Loaded {len(df)} raw rows.")
+    # Load and merge data across years as 1 data frame
+    df, paths = load_raw_multi(config["pattern"], config["value_col"])
+    print(f"Loaded {len(df)} raw rows from {len(paths)} files.")
+
+    # Check for duplicates (based on timestamp) and remove the duplicates, take the latest value
+    df, dedupe_stats = remove_duplicates(df)
+    print(
+        f"Removed {dedupe_stats['duplicate_timestamps_removed']} duplicate timestamps "
+        f"({dedupe_stats['duplicates_with_mismatched_values']} had mismatched values)."
+    )
 
     df, drop_stats = drop_bad_rows(df)
     print(
@@ -143,8 +178,26 @@ def clean_file(name: str, config: dict) -> None:
         f"Filled {gap_stats['missing_intervals_filled']} missing 15-min intervals via interpolation."
     )
 
+    # Added year, month,
+    df["year"] = df["startTime"].dt.year
+    df["month"] = df["startTime"].dt.month
+    df["month_name"] = df["startTime"].dt.strftime("%b")
+    df["month_year"] = df["startTime"].dt.strftime("%m-%Y")
+    df["month_year_sort"] = df["startTime"].dt.strftime("%Y-%m")
+
     df = df.rename(columns={"value": config["out_col"]})
-    df = df[["startTime", config["out_col"], "is_outlier"]]
+    df = df[
+        [
+            "startTime",
+            config["out_col"],
+            "is_outlier",
+            "year",
+            "month",
+            "month_name",
+            "month_year",
+            "month_year_sort",
+        ]
+    ]
     df.to_csv(config["out_path"], index=False)
     print(f"Wrote {len(df)} clean rows to {config['out_path']}")
 
