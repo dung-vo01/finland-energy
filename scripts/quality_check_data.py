@@ -104,6 +104,6 @@ def quality_check(name: str, config: dict):
 
 if __name__ == "__main__":
     print("\n--- DATA QUALITY CHECK ---")
-
+    
     for name, config in FILES.items():
         quality_check(name, config)

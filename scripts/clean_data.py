@@ -178,17 +178,23 @@ def clean_file(name: str, config: dict) -> None:
         f"Filled {gap_stats['missing_intervals_filled']} missing 15-min intervals via interpolation."
     )
 
-    # Added year, month,
-    df["year"] = df["startTime"].dt.year
-    df["month"] = df["startTime"].dt.month
-    df["month_name"] = df["startTime"].dt.strftime("%b")
-    df["month_year"] = df["startTime"].dt.strftime("%m-%Y")
-    df["month_year_sort"] = df["startTime"].dt.strftime("%Y-%m")
+    # Convert to Finnish local time before deriving calendar fields to avoid UTC boundary spillover
+    # Also remove tz so that QuickSight wouldnt try to convert it back to UTC
+    df["startTime_local"] = df["startTime"].dt.tz_convert("Europe/Helsinki").dt.tz_localize(None)
+
+    # Added basic date-related columns
+    df["year"] = df["startTime_local"].dt.year
+    df["month"] = df["startTime_local"].dt.month
+    df["month_name"] = df["startTime_local"].dt.strftime("%b")
+    df["month_year"] = df["startTime_local"].dt.strftime("%m-%Y")
+    df["month_year_sort"] = df["startTime_local"].dt.year*100 + df["startTime_local"].dt.month
+    df["day"] = df["startTime_local"].dt.day
+    df["hour"] = df["startTime_local"].dt.hour
 
     df = df.rename(columns={"value": config["out_col"]})
     df = df[
         [
-            "startTime",
+            "startTime_local",
             config["out_col"],
             "is_outlier",
             "year",
@@ -196,6 +202,8 @@ def clean_file(name: str, config: dict) -> None:
             "month_name",
             "month_year",
             "month_year_sort",
+            "day",
+            "hour"
         ]
     ]
     df.to_csv(config["out_path"], index=False)
