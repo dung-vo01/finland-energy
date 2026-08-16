@@ -17,6 +17,10 @@
 # - Any gap > 15 minutes between consecutive rows will get the missing
 # 15-min slot(s) inserted and the value linearly interpolated
 
+# Price data (Nord Pool day-ahead, hourly):
+# - Negative/zero prices are real market signal (oversupply), not errors, kept as-is.
+# - Aggregated straight to monthly average, since that's the only grain used downstream.
+
 
 # Merge data across years as one file, removing duplicates
 
@@ -43,6 +47,9 @@ FILES = {
         "out_path": CLEAN_DIR / "electricity-production-3y-clean.csv",
     },
 }
+
+PRICE_PATTERN = RAW_DIR / "electricity-prices-hourly-*.csv"
+PRICE_MONTHLY_OUT_PATH = CLEAN_DIR / "electricity-price-monthly-3y-clean.csv"
 
 
 def load_raw_multi(pattern: str, value_col: str) -> pd.DataFrame:
@@ -71,7 +78,9 @@ def remove_duplicates(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     if not dupes.empty:
         mismatched = dupes.groupby("startTime")["value"].nunique().gt(1).sum()
 
-    df = df.sort_values("startTime", kind="stable").drop_duplicates(subset="startTime", keep="last")
+    df = df.sort_values("startTime", kind="stable").drop_duplicates(
+        subset="startTime", keep="last"
+    )
     stats = {
         "duplicate_timestamps_removed": n_before - len(df),
         "duplicates_with_mismatched_values": int(mismatched),
@@ -93,6 +102,7 @@ def drop_bad_rows(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
 
     df = df[~bad_timestamp & ~bad_value].copy()
     stats["rows_dropped_total"] = n_start - len(df)
+
     return df, stats
 
 
@@ -141,7 +151,7 @@ def fill_timestamp_gaps(
 
 
 def clean_file(name: str, config: dict) -> None:
-    print(f"\n=== File: {name.upper()} ===")
+    print(f"\n=== {name.upper()} FILES ===")
 
     # Load and merge data across years as 1 data frame
     df, paths = load_raw_multi(config["pattern"], config["value_col"])
@@ -180,14 +190,18 @@ def clean_file(name: str, config: dict) -> None:
 
     # Convert to Finnish local time before deriving calendar fields to avoid UTC boundary spillover
     # Also remove tz so that QuickSight wouldnt try to convert it back to UTC
-    df["startTime_local"] = df["startTime"].dt.tz_convert("Europe/Helsinki").dt.tz_localize(None)
+    df["startTime_local"] = (
+        df["startTime"].dt.tz_convert("Europe/Helsinki").dt.tz_localize(None)
+    )
 
     # Added basic date-related columns
     df["year"] = df["startTime_local"].dt.year
     df["month"] = df["startTime_local"].dt.month
     df["month_name"] = df["startTime_local"].dt.strftime("%b")
     df["month_year"] = df["startTime_local"].dt.strftime("%m-%Y")
-    df["month_year_sort"] = df["startTime_local"].dt.year*100 + df["startTime_local"].dt.month
+    df["month_year_sort"] = (
+        df["startTime_local"].dt.year * 100 + df["startTime_local"].dt.month
+    )
     df["day"] = df["startTime_local"].dt.day
     df["hour"] = df["startTime_local"].dt.hour
 
@@ -203,14 +217,62 @@ def clean_file(name: str, config: dict) -> None:
             "month_year",
             "month_year_sort",
             "day",
-            "hour"
+            "hour",
         ]
     ]
     df.to_csv(config["out_path"], index=False)
     print(f"Wrote {len(df)} clean rows to {config['out_path']}")
 
 
+def load_price_multi(pattern: str) -> pd.DataFrame:
+    paths = sorted(glob.glob(str(pattern)))
+    if not paths:
+        raise FileNotFoundError(f"No files matched: {pattern}")
+
+    dfs = []
+    for p in paths:
+        df = pd.read_csv(p)
+        df["hour"] = pd.to_datetime(df["hour"], errors="coerce", utc=True)
+        dfs.append(df[["hour", "price"]])
+
+    combined = pd.concat(dfs, ignore_index=True)
+    combined = combined.sort_values("hour", kind="stable").drop_duplicates(
+        subset="hour", keep="last"
+    )
+
+    return combined.reset_index(drop=True), paths
+
+
+def clean_price_file(pattern: str, out_path: Path) -> None:
+    print("\n=== PRICE FILES ===")
+
+    df, paths = load_price_multi(pattern)
+    print(f"Loaded {len(df)} raw rows from {len(paths)} files.")
+
+    df["hour_local"] = df["hour"].dt.tz_convert("Europe/Helsinki").dt.tz_localize(None)
+    df["year"] = df["hour_local"].dt.year
+    df["month"] = df["hour_local"].dt.month
+
+    monthly = (
+        df.groupby(["year", "month"])["price"]
+        .mean()
+        .reset_index()
+        .rename(columns={"price": "avg_price_eur_mwh"})
+    )
+    
+    # Drop 2026-08: only  around 3 hours of data due to UTC/local boundary spillover
+    # from the pull's end cutoff, not a real month average
+    monthly = monthly[~((monthly["year"] == 2026) & (monthly["month"] == 8))]
+    
+    monthly = monthly.sort_values(["year", "month"]).reset_index(drop=True)
+
+    monthly.to_csv(out_path, index=False)
+    print(f"Wrote {len(monthly)} monthly rows to {out_path}")
+
+
 if __name__ == "__main__":
     print("\n--- CLEANING DATA ---")
     for name, config in FILES.items():
         clean_file(name, config)
+
+    clean_price_file(PRICE_PATTERN, PRICE_MONTHLY_OUT_PATH)
